@@ -1,0 +1,22 @@
+# Python temporary files
+__pycache__/
+*.pyc
+
+# Project temporary/output files
+tmp/
+output/
+
+# Environment variables / passwords
+.env
+.env.*
+
+# Local data
+data/
+
+# IDE/editor files
+.vscode/
+.idea/
+
+# Operating system files
+.DS_Store
+Thumbs.db

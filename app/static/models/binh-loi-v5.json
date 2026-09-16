@@ -1,0 +1,16 @@
+{
+  "id": "binh-loi-v5-reference",
+  "name": "Bình Lợi · Version 5 · Red arches",
+  "status": "preliminary",
+  "url": "/static/models/binh-loi-v5-reference.glb",
+  "bytes": 15465236,
+  "mesh_count": 216,
+  "sha256": "7372852748801e24aa34990a87941c20811a7251411b867d645fad115cdb6ae4",
+  "source_sha256": "abfb8950f451649e88dee4aeb537e163bff5bcd544a8effc63a80656e5186302",
+  "geometry_binary_sha256": "bd2a9d05cfec981ea328058b3a2818e503b2733bfaa48a55eef0dfa9c26278dc",
+  "verified_components": {
+    "ribs": 4,
+    "cross_braces": 14
+  },
+  "notes": "Version 5 geometry and placement preserved. Four arch ribs and fourteen horizontal cross-braces are red to match the reference. Four sensor pins are mapped to bridge components and select the related live dashboard reading."
+}

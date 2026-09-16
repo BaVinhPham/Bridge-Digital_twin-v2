@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bridge Digital Twin · Sensor dashboard</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f2f5f8;color:#172e44;font:16px/1.5 system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:32px 24px}header{border-bottom:1px solid #cbd6df;padding-bottom:24px}h1{font-size:32px;margin:8px 0}h2{font-size:20px;margin:0}p{margin:6px 0}.eyebrow{font-size:13px;letter-spacing:2px;font-weight:700;color:#42647b}.notice{display:inline-block;background:#fff0cf;color:#704400;padding:6px 12px;border-radius:6px}.toolbar{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:24px 0}select,button{font:inherit;padding:8px 12px;border:1px solid #a7bac8;border-radius:6px;background:white;color:#172e44}button{cursor:pointer}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.card{background:white;border:1px solid #d8e2e9;border-radius:12px;padding:22px;min-width:0}.cardhead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.muted{color:#526b7c;font-size:14px}.state{font-size:14px;color:#526b7c}.value{font-size:36px;font-weight:650;margin-top:16px}.unit{font-size:16px;font-weight:400}canvas{width:100%;height:190px;display:block;margin-top:18px}.stats{display:flex;flex-wrap:wrap;gap:20px;border-top:1px solid #e0e8ee;padding-top:12px;margin-top:12px}.stats span{display:block;font-size:13px;color:#526b7c}.stats strong{font-size:16px;font-weight:600}footer{font-size:14px;color:#526b7c;margin-top:24px}@media(max-width:650px){main{padding:20px 14px}.grid{grid-template-columns:1fr}h1{font-size:26px}.card{padding:16px}}
+.bridge-panel{margin-top:24px;background:white;border:1px solid #d8e2e9;border-radius:12px;padding:22px}.bridge-view{position:relative;max-width:720px;margin:12px auto}.bridge-view img{display:block;width:100%;height:auto}.marker{position:absolute;transform:translate(-50%,-50%);border:2px solid #087f8c;border-radius:50%;width:44px;height:44px;padding:0;font-weight:700;background:white;color:#075c65}.marker[aria-pressed="true"],.sensor-choice[aria-pressed="true"]{background:#075c65;color:white}.sensor-choices{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.sensor-choice{flex:1 1 180px;text-align:left}.sensor-choice small{display:block}.selected-detail{margin-top:16px;padding:12px 16px;background:#edf7f8;border-left:4px solid #087f8c}.card.selected{border:2px solid #087f8c}.card{scroll-margin-top:20px}.selection-label{font-weight:600;margin:0 0 6px;color:#075c65}.bridge-panel a{color:#075c65}.bridge-caption{font-size:14px;color:#526b7c;margin-top:8px}@media(max-width:650px){.bridge-panel{padding:16px}.marker{width:38px;height:38px}.sensor-choice{flex-basis:130px}}
+/* Digital-twin control-room layout */
+body{background:#101a22;color:#eaf3f6;min-height:100vh}main{max-width:none;min-height:100vh;padding:0;display:grid;grid-template-columns:minmax(300px,365px) minmax(0,1fr);grid-template-rows:auto auto 1fr auto;grid-template-areas:"header visual" "toolbar visual" "cards visual" "footer footer";background:#101a22}header{grid-area:header;padding:28px 26px 20px;border:0;background:#172630}.eyebrow{color:#48c5de;font-size:11px}.notice{background:#213846;color:#7ce2f3;border:1px solid #396170;font-size:12px}.toolbar{grid-area:toolbar;margin:0;padding:12px 26px 20px;background:#172630;border-top:1px solid #2b414d;border-bottom:1px solid #2b414d;color:#b6c7cf}.toolbar select,.toolbar button{background:#223844;color:#eaf3f6;border-color:#52707c}.toolbar button{font-weight:600}.bridge-panel{grid-area:visual;margin:0;position:relative;border:0;border-radius:0;padding:34px;min-height:680px;display:flex;flex-direction:column;background:#07131a;overflow:hidden}.bridge-panel:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,18,26,.58),rgba(5,18,26,.05) 50%,rgba(5,18,26,.35)),linear-gradient(0deg,rgba(1,9,14,.55),transparent 45%);pointer-events:none}.bridge-panel h2,.bridge-caption,.bridge-view,.sensor-choices,.selected-detail{position:relative;z-index:1}.bridge-panel h2{font-size:24px;color:#f3fbfc}.bridge-caption{color:#c6d8de;max-width:580px}.bridge-view{max-width:none;flex:1;margin:12px 0 0;min-height:360px}.bridge-view img{width:100%;height:100%;min-height:400px;object-fit:cover;object-position:center}.marker{width:48px;height:48px;border-color:#36d3ed;background:#142d38;color:#dffbff;box-shadow:0 0 0 6px rgba(38,196,220,.17)}.marker[aria-pressed="true"]{background:#00aeca;color:#fff;border-color:#baf7ff}.sensor-choices{position:absolute;top:32px;right:34px;max-width:245px;justify-content:flex-end}.sensor-choice{display:none}.sensor-choice[aria-pressed="true"]{display:block;flex:0 1 245px;background:rgba(13,33,44,.88);border-color:#56d6eb;color:#fff;padding:13px 15px;text-align:left;backdrop-filter:blur(5px)}.selected-detail{position:absolute;left:34px;bottom:32px;max-width:550px;background:rgba(10,29,38,.88);border-left:4px solid #27c7df;color:#eaf3f6;backdrop-filter:blur(5px)}.selected-detail a,.bridge-panel a{color:#7ce2f3}.grid{grid-area:cards;display:flex;flex-direction:column;gap:0;background:#172630;overflow:auto}.card{background:#172630;border:0;border-radius:0;border-bottom:1px solid #2d4652;padding:17px 26px;color:#edf7fa}.card.selected{border:0;border-left:4px solid #37d7ee;background:#1d3340}.card .selection-label{color:#56d6eb;font-size:12px}.cardhead{align-items:start}.card h2{font-size:17px}.muted,.state{color:#a4bcc5}.value{font-size:27px;margin-top:8px}.unit{color:#b8d0d7}.card canvas{height:82px;margin-top:8px;background:rgba(7,18,24,.28)}.stats{gap:14px;border-top-color:#2d4652;padding-top:8px;margin-top:4px}.stats span{color:#89a7b2}.stats strong{color:#f2fbfd;font-size:14px}footer{grid-area:footer;margin:0;padding:12px 26px;background:#0c161d;color:#91aab4;font-size:12px}@media(max-width:850px){main{display:block}header,.toolbar,.grid{width:auto}.bridge-panel{min-height:550px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.card{border-right:1px solid #2d4652}.sensor-choices{position:relative;right:auto;top:auto;margin-top:8px}.selected-detail{left:24px;right:24px;bottom:24px}.bridge-panel{padding:24px}}@media(max-width:550px){.grid{display:block}.bridge-panel{min-height:460px;padding:18px}.bridge-view{min-height:260px}.bridge-view img{min-height:280px}.marker{width:40px;height:40px}.selected-detail{left:18px;right:18px;bottom:18px;font-size:13px}.sensor-choices{display:none}}
+.twin-canvas{width:100%;height:100%;min-height:400px;display:block;cursor:grab;touch-action:none;background:radial-gradient(ellipse at 50% 25%,#244452 0%,#0b1b25 57%,#061018 100%)}.twin-canvas:active{cursor:grabbing}@media(max-width:550px){.twin-canvas{min-height:280px}}
+.bridge-view .marker{display:none}.sensor-choices{position:relative;top:auto;right:auto;max-width:none;justify-content:flex-start}.sensor-choice{display:block;flex:1 1 150px}.sensor-choice[aria-pressed="true"]{flex:1 1 150px}.selected-detail{position:relative;left:auto;bottom:auto;margin-top:12px}.twin-canvas{visibility:hidden}
+</style>
+<style>
+.test-sensor-panel{margin:0;padding:18px 20px}.test-sensor-panel h2{font-size:18px}.test-sensor-summary{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0;color:#c6d8de;font-size:13px}.test-sensor-summary strong{color:#7ce2f3}.test-sensor-tools{display:flex;gap:8px;margin:12px 0}.test-sensor-tools input{min-width:0;flex:1;padding:8px;border:1px solid #52707c;border-radius:5px;background:#102631;color:#eefbff}.test-sensor-table{width:100%;border-collapse:collapse;font-size:13px}.test-sensor-table th,.test-sensor-table td{padding:7px 4px;border-top:1px solid #2d4652;text-align:left}.test-sensor-table th{color:#8fb3c0;font-weight:600}.test-sensor-name{padding:0;border:0;background:transparent;color:#7ce2f3;text-decoration:underline;font:inherit;font-weight:650}.test-sensor-name:hover{color:#fff}.test-sensor-state{color:#70d7a1}.test-sensor-state.late{color:#f3be69}.test-sensor-paging{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12px;color:#a4bcc5}.test-sensor-paging button{padding:5px 9px;background:#223844;color:#eaf3f6;border-color:#52707c}.test-sensor-detail{margin-top:16px;padding:16px;border:1px solid #3b6878;border-radius:8px;background:#10232d}.test-sensor-detail[hidden]{display:none}.test-sensor-detail .cardhead{margin-bottom:6px}.test-sensor-detail canvas{height:130px}
+</style>
+</head>
+<body><main>
+<header><div class="eyebrow">BRIDGE DIGITAL TWIN</div><h1>Bình Lợi Bridge</h1><p>Version 5 · Preliminary model</p><p class="notice">SIMULATED DATA · DEMONSTRATION</p><a href="/model" style="color:#7ce2f3;display:block;margin-top:10px">Open model workspace →</a></header>
+<div class="toolbar"><label>History <select id="limit"><option>20</option><option selected>50</option><option>100</option><option>200</option></select></label><button id="pause" type="button">Pause</button><span id="connection" role="status">Connecting…</span></div>
+<section class="bridge-panel" aria-labelledby="bridge-heading">
+<h2 id="bridge-heading">Bridge overview</h2>
+<p class="bridge-caption">Imported Revit FBX · Version 5 · Drag to rotate and scroll to zoom. Click a sensor pin to select its live reading in the dashboard.</p>
+<div class="bridge-view">
+<iframe src="/model?embed=1&v=zoom-aware-sensors-v5" title="Imported Bình Lợi bridge model" style="position:absolute;inset:0;width:100%;height:100%;border:0;z-index:2;min-height:400px"></iframe>
+<canvas id="twin-canvas" class="twin-canvas" role="img" aria-label="Interactive 3D-style model of a red arch bridge. Drag to rotate and use the mouse wheel to zoom. Four numbered markers represent sensors."></canvas>
+<button type="button" class="marker" data-sensor="ACC_01" aria-label="1: Acceleration at deck midspan" aria-pressed="true" style="left:50%;top:70%">1</button>
+<button type="button" class="marker" data-sensor="SG_01" aria-label="2: Strain on girder G1" aria-pressed="false" style="left:34%;top:74%">2</button>
+<button type="button" class="marker" data-sensor="TEMP_01" aria-label="3: Temperature at deck surface" aria-pressed="false" style="left:68%;top:69%">3</button>
+<button type="button" class="marker" data-sensor="DISP_01" aria-label="4: Displacement at abutment" aria-pressed="false" style="left:82%;top:82%">4</button>
+</div>
+<div class="sensor-choices" id="sensor-choices" aria-label="Select a bridge sensor"></div>
+<div class="selected-detail"><div id="selection" role="status"></div><div id="selected-reading"></div><a id="selected-link" href="#sensor-ACC_01">View selected sensor chart ↓</a></div>
+</section>
+<section class="grid" id="cards" aria-label="Sensor readings" style="margin-top:20px"></section>
+<footer>Updates every 2 seconds. Statistics describe the displayed readings. “No recent data” means the latest reading is over 10 seconds old; it does not indicate bridge condition.</footer>
+</main>
+<script>
+const definitions=[['ACC_01','Acceleration','Deck midspan','m/s²'],['SG_01','Strain','Girder G1','µε'],['TEMP_01','Temperature','Deck surface','°C'],['DISP_01','Displacement','Abutment','mm']];
+const cards=new Map(); let paused=false, busy=false, selectedSensor="ACC_01";
+const twin=document.getElementById('twin-canvas');
+const twinContext=twin.getContext('2d');
+const markerPositions={ACC_01:[0,1.1,0],SG_01:[-3.2,.55,-.65],TEMP_01:[2.7,1.15,.55],DISP_01:[5.2,-.2,.7]};
+let twinYaw=-.65,twinPitch=.32,twinZoom=1,twinDrag=null;
+function project([x,y,z]){
+ const cy=Math.cos(twinYaw),sy=Math.sin(twinYaw),cp=Math.cos(twinPitch),sp=Math.sin(twinPitch);
+ const rx=x*cy-z*sy,rz=x*sy+z*cy,ry=y*cp-rz*sp,depth=rz*cp+y*sp+14;
+ return [twin.clientWidth*.5+rx*(twin.clientWidth*.09*twinZoom)/Math.max(.5,depth/14),twin.clientHeight*.57-ry*(twin.clientWidth*.09*twinZoom)/Math.max(.5,depth/14)];
+}
+function segment(a,b,color='#35b9d0',width=1){const p=project(a),q=project(b);twinContext.strokeStyle=color;twinContext.lineWidth=width;twinContext.beginPath();twinContext.moveTo(...p);twinContext.lineTo(...q);twinContext.stroke()}
+function box(x,y,z,w,h,d,color){const v=[[x-w/2,y-h/2,z-d/2],[x+w/2,y-h/2,z-d/2],[x+w/2,y+h/2,z-d/2],[x-w/2,y+h/2,z-d/2],[x-w/2,y-h/2,z+d/2],[x+w/2,y-h/2,z+d/2],[x+w/2,y+h/2,z+d/2],[x-w/2,y+h/2,z+d/2]];[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(([a,b])=>segment(v[a],v[b],color,2))}
+function arch(side){let previous=null;for(let x=-5;x<=5.01;x+=.18){const y=.7+2.25*(1-(x/5)*(x/5));const point=[x,y,side];if(previous)segment(previous,point,'#e85b44',5);previous=point;if(Math.abs((x+5)%1)<.1)segment([x,.65,side],point,'#ed6e54',1)}}
+function renderTwin(){const rect=twin.getBoundingClientRect(),scale=devicePixelRatio||1,width=Math.max(1,Math.round(rect.width)),height=Math.max(1,Math.round(rect.height));twin.width=width*scale;twin.height=height*scale;twinContext.setTransform(scale,0,0,scale,0,0);twinContext.clearRect(0,0,width,height);
+ for(let i=-9;i<=9;i++)segment([i,-1.1,-4],[i,-1.1,4],'rgba(68,147,166,.22)');for(let i=-4;i<=4;i++)segment([-9,-1.1,i],[9,-1.1,i],'rgba(68,147,166,.22)');
+ box(0,.25,0,10.8,.35,1.6,'#2cc7df');box(-5.1,-.35,0,.65,1.3,1.45,'#204b61');box(5.1,-.35,0,.65,1.3,1.45,'#204b61');arch(-.7);arch(.7);
+ for(const side of [-.7,.7])for(let x=-4.5;x<=4.5;x+=.9)segment([x,.65,side],[x,.7+2.25*(1-(x/5)*(x/5)),side],'#33b3ca',1);
+ const labels={ACC_01:'1',SG_01:'2',TEMP_01:'3',DISP_01:'4'};document.querySelectorAll('.marker').forEach(button=>{const p=project(markerPositions[button.dataset.sensor]);button.style.left=(p[0]/width*100)+'%';button.style.top=(p[1]/height*100)+'%';button.textContent=labels[button.dataset.sensor]});
+}
+twin.addEventListener('pointerdown',event=>{twinDrag=[event.clientX,event.clientY];twin.setPointerCapture(event.pointerId)});twin.addEventListener('pointermove',event=>{if(!twinDrag)return;twinYaw+=(event.clientX-twinDrag[0])*.012;twinPitch=Math.max(-.15,Math.min(.75,twinPitch+(event.clientY-twinDrag[1])*.01));twinDrag=[event.clientX,event.clientY];renderTwin()});twin.addEventListener('pointerup',()=>twinDrag=null);twin.addEventListener('wheel',event=>{event.preventDefault();twinZoom=Math.max(.65,Math.min(1.7,twinZoom-event.deltaY*.001));renderTwin()},{passive:false});
+for(const [id,title,location,unit] of definitions){
+ const article=document.createElement('article');article.className='card';article.id='sensor-'+id;
+ article.innerHTML=`<div class="cardhead"><div><h2>${title}</h2><div class="muted">${id} · ${location}</div></div><div class="state">Waiting for data</div></div><div class="value"><b>—</b> <span class="unit">${unit}</span></div><div class="muted timestamp">No reading yet</div><canvas role="img" aria-label="${title} history in ${unit}"></canvas><div class="stats"><div><span>Average</span><strong class="avg">—</strong></div><div><span>Minimum</span><strong class="min">—</strong></div><div><span>Maximum</span><strong class="max">—</strong></div><div><span>Readings</span><strong class="count">0</strong></div></div>`;
+ document.getElementById('cards').append(article);cards.set(id,{article,data:[],unit});
+}
+function updateSelection(){
+ const card=cards.get(selectedSensor),definition=definitions.find(d=>d[0]===selectedSensor);
+ document.getElementById('selection').textContent=`Selected: ${definition[1]} · ${selectedSensor} · ${definition[2]}`;
+ document.getElementById('selected-reading').textContent=card.article.querySelector('.value').textContent.trim()+' · '+(paused?'Display paused':card.article.querySelector('.state').textContent)+' · '+card.article.querySelector('.timestamp').textContent;
+ document.getElementById('selected-link').href='#sensor-'+selectedSensor;
+}
+function selectSensor(id){
+ selectedSensor=id;
+ document.querySelectorAll('[data-sensor]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.sensor===id)));
+ cards.forEach((card,key)=>{card.article.classList.toggle('selected',key===id);let label=card.article.querySelector('.selection-label');if(key===id&&!label){label=document.createElement('p');label.className='selection-label';label.textContent='Selected sensor';card.article.prepend(label);}else if(key!==id&&label){label.remove();}});
+ updateSelection();
+ renderTwin();
+}
+definitions.forEach(([id,title,location],index)=>{const button=document.createElement('button');button.type='button';button.className='sensor-choice';button.dataset.sensor=id;button.innerHTML=`${index+1}. ${title}<small>${id} · ${location}</small>`;document.getElementById('sensor-choices').append(button);});
+document.querySelectorAll('[data-sensor]').forEach(button=>button.onclick=()=>selectSensor(button.dataset.sensor));
+window.addEventListener('message',event=>{if(event.origin!==window.location.origin||event.data?.type!=='bridge-sensor-selected'||!cards.has(event.data.id))return;selectSensor(event.data.id);document.getElementById('sensor-'+event.data.id).scrollIntoView({behavior:'smooth',block:'nearest'});});
+selectSensor(selectedSensor);renderTwin();
+
+const format=n=>Number.isFinite(n)?n.toLocaleString(undefined,{maximumFractionDigits:4}):'—';
+function draw(card){
+ const canvas=card.article.querySelector('canvas'),w=canvas.clientWidth,h=190,dpr=window.devicePixelRatio||1;canvas.width=w*dpr;canvas.height=h*dpr;const c=canvas.getContext('2d');c.scale(dpr,dpr);c.font='12px system-ui';c.fillStyle='#526b7c';
+ const data=card.data;if(!data.length){c.fillText('Waiting for sensor readings',12,90);return;}
+ const values=data.map(d=>d.value),lo=Math.min(...values),hi=Math.max(...values),pad=(hi-lo)*.12||Math.max(Math.abs(hi)*.05,.01),min=lo-pad,max=hi+pad,left=64,right=w-12,top=16,bottom=156;
+ c.strokeStyle='#e0e8ee';for(let i=0;i<3;i++){let y=top+i*(bottom-top)/2;c.beginPath();c.moveTo(left,y);c.lineTo(right,y);c.stroke();c.fillText(format(max-i*(max-min)/2),0,y+4);}
+ const t0=Date.parse(data[0].timestamp),t1=Date.parse(data.at(-1).timestamp);c.strokeStyle='#087f8c';c.lineWidth=2;c.beginPath();data.forEach((d,i)=>{const x=left+(t1===t0?.5:(Date.parse(d.timestamp)-t0)/(t1-t0))*(right-left),y=bottom-(d.value-min)/(max-min)*(bottom-top);i?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();if(data.length===1){c.beginPath();c.arc((left+right)/2,bottom-(values[0]-min)/(max-min)*(bottom-top),3,0,Math.PI*2);c.fillStyle='#087f8c';c.fill();}c.fillStyle='#526b7c';c.fillText(new Date(t0).toLocaleTimeString(),left,180);c.textAlign='right';c.fillText(new Date(t1).toLocaleTimeString(),right,180);
+}
+function render(card){const a=card.article,data=card.data,last=data.at(-1),values=data.map(d=>d.value);a.querySelector('.value b').textContent=last?format(last.value):'—';a.querySelector('.timestamp').textContent=last?'Last reading: '+new Date(last.timestamp).toLocaleString():'No reading yet';a.querySelector('.state').textContent=!last?'Waiting for data':Date.now()-Date.parse(last.timestamp)>10000?'No recent data':'Receiving data';a.querySelector('.avg').textContent=values.length?format(values.reduce((a,b)=>a+b,0)/values.length):'—';a.querySelector('.min').textContent=values.length?format(Math.min(...values)):'—';a.querySelector('.max').textContent=values.length?format(Math.max(...values)):'—';a.querySelector('.count').textContent=values.length;draw(card);}
+async function refresh(){if(paused||busy)return;busy=true;const limit=document.getElementById('limit').value;let failures=0;await Promise.all([...cards].map(async([id,card])=>{try{const response=await fetch(`/sensors/${id}/history?limit=${limit}`,{signal:AbortSignal.timeout(5000),cache:'no-store'});if(!response.ok)throw Error('API unavailable');card.data=(await response.json()).reverse();render(card);}catch{failures++;card.article.querySelector('.state').textContent='Connection unavailable · retained data';}}));document.getElementById('connection').textContent=paused?'Updates paused':failures?'Unable to refresh '+failures+' sensor(s)':'Connected · checked '+new Date().toLocaleTimeString();updateSelection();busy=false;}
+document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'Resume updates':'Pause updates';document.getElementById('connection').textContent=paused?'Updates paused':'Connecting…';updateSelection();if(!paused)refresh();};document.getElementById('limit').onchange=()=>{if(!paused)refresh();};new ResizeObserver(()=>{cards.forEach(draw);renderTwin()}).observe(document.getElementById('cards'));new ResizeObserver(renderTwin).observe(twin);refresh();setInterval(refresh,2000);
+</script><script>
+(() => {
+  const host = document.getElementById('cards');
+  const panel = document.createElement('article');
+  panel.className = 'card test-sensor-panel';
+  panel.innerHTML = '<h2>Testing sensors</h2><div class="test-sensor-summary" id="test-summary">Loading testing sensors…</div><div class="test-sensor-tools"><input id="test-search" type="search" placeholder="Search TEST_001…" aria-label="Search testing sensors"></div><table class="test-sensor-table"><thead><tr><th>Sensor</th><th>Latest</th><th>Status</th></tr></thead><tbody id="test-rows"></tbody></table><div class="test-sensor-paging"><button id="test-prev" type="button">Previous</button><span id="test-page"></span><button id="test-next" type="button">Next</button></div><article id="test-sensor-detail" class="test-sensor-detail" hidden aria-live="polite"></article>';
+  host.append(panel);
+  const pageSize = 10;
+  let page = 0;
+  let tests = [];
+  let selectedTest = null;
+  const detailArticle = document.getElementById('test-sensor-detail');
+  const detailCard = { article: detailArticle, data: [], unit: 'unit' };
+
+  function formatTestValue(value) {
+    return Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—';
+  }
+
+  function renderTestDetail() {
+    const data = detailCard.data;
+    const last = data.at(-1);
+    const values = data.map(reading => Number(reading.value)).filter(Number.isFinite);
+    detailArticle.querySelector('.value b').textContent = last ? formatTestValue(last.value) : '—';
+    detailArticle.querySelector('.timestamp').textContent = last ? `Last reading: ${new Date(last.timestamp).toLocaleString()}` : 'No reading yet';
+    detailArticle.querySelector('.state').textContent = !last ? 'Waiting for data' : Date.now() - Date.parse(last.timestamp) > 10000 ? 'No recent data' : 'Receiving data';
+    detailArticle.querySelector('.avg').textContent = values.length ? formatTestValue(values.reduce((sum, value) => sum + value, 0) / values.length) : '—';
+    detailArticle.querySelector('.min').textContent = values.length ? formatTestValue(Math.min(...values)) : '—';
+    detailArticle.querySelector('.max').textContent = values.length ? formatTestValue(Math.max(...values)) : '—';
+    detailArticle.querySelector('.count').textContent = values.length;
+    const canvas = detailArticle.querySelector('canvas');
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.round(rect.width));
+    const height = Math.max(1, Math.round(rect.height));
+    canvas.width = width * ratio; canvas.height = height * ratio;
+    const context = canvas.getContext('2d');
+    context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
+    if (!values.length) return;
+    const low = Math.min(...values), high = Math.max(...values), span = high - low || 1;
+    const left = 8, right = width - 8, top = 10, bottom = height - 18;
+    context.strokeStyle = 'rgba(127, 210, 229, .25)'; context.lineWidth = 1;
+    for (let row = 0; row < 3; row++) { const y = top + row * (bottom - top) / 2; context.beginPath(); context.moveTo(left, y); context.lineTo(right, y); context.stroke(); }
+    context.strokeStyle = '#47d6ee'; context.lineWidth = 2; context.beginPath();
+    values.forEach((value, index) => { const x = values.length === 1 ? (left + right) / 2 : left + index * (right - left) / (values.length - 1); const y = bottom - (value - low) / span * (bottom - top); index ? context.lineTo(x, y) : context.moveTo(x, y); }); context.stroke();
+  }
+
+  async function selectTestSensor(sensor) {
+    selectedTest = sensor.sensor_id;
+    detailCard.unit = sensor.unit || 'unit';
+    detailArticle.hidden = false;
+    detailArticle.innerHTML = `<div class="cardhead"><div><h2>${sensor.sensor_id} history</h2><div class="muted">Testing sensor · ${sensor.location || 'Test only'}</div></div><div class="state">Loading history…</div></div><div class="value"><b>—</b> <span class="unit">${detailCard.unit}</span></div><div class="muted timestamp">Loading latest reading…</div><canvas role="img" aria-label="${sensor.sensor_id} history"></canvas><div class="stats"><div><span>Average</span><strong class="avg">—</strong></div><div><span>Minimum</span><strong class="min">—</strong></div><div><span>Maximum</span><strong class="max">—</strong></div><div><span>Readings</span><strong class="count">0</strong></div></div>`;
+    detailCard.data = sensor.timestamp && Number.isFinite(Number(sensor.value)) ? [{ timestamp: sensor.timestamp, value: Number(sensor.value), quality: sensor.quality || 'GOOD' }] : [];
+    renderTestDetail();
+    try {
+      const response = await fetch(`/sensors/${encodeURIComponent(sensor.sensor_id)}/history?limit=50`, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
+      if (!response.ok) throw Error('History unavailable');
+      detailCard.data = (await response.json()).reverse();
+      if (selectedTest === sensor.sensor_id) renderTestDetail();
+    } catch {
+      if (selectedTest === sensor.sensor_id) detailArticle.querySelector('.state').textContent = 'History unavailable';
+    }
+  }
+  const format = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, {maximumFractionDigits: 3}) : '—';
+  const render = () => {
+    const query = document.getElementById('test-search').value.trim().toLowerCase();
+    const filtered = tests.filter(sensor => sensor.sensor_id.toLowerCase().includes(query));
+    const maxPage = Math.max(0, Math.ceil(filtered.length / pageSize) - 1);
+    page = Math.min(page, maxPage);
+    const shown = filtered.slice(page * pageSize, page * pageSize + pageSize);
+    const rows = document.getElementById('test-rows');
+    rows.replaceChildren(...shown.map(sensor => {
+      const row = document.createElement('tr');
+      const id = document.createElement('td');
+      const name = document.createElement('button'); name.type = 'button'; name.className = 'test-sensor-name'; name.textContent = sensor.sensor_id;
+      name.setAttribute('aria-label', `Show ${sensor.sensor_id} history chart`);
+      name.onclick = () => selectTestSensor(sensor);
+      id.append(name);
+      const value = document.createElement('td'); value.textContent = `${format(sensor.value)} ${sensor.unit}`;
+      const state = document.createElement('td');
+      const fresh = sensor.timestamp && Date.now() - Date.parse(sensor.timestamp) <= 10000;
+      state.textContent = fresh ? 'Live' : 'No recent data';
+      state.className = `test-sensor-state${fresh ? '' : ' late'}`;
+      row.append(id, value, state); return row;
+    }));
+    const live = tests.filter(sensor => sensor.timestamp && Date.now() - Date.parse(sensor.timestamp) <= 10000).length;
+    const values = tests.map(sensor => Number(sensor.value)).filter(Number.isFinite);
+    document.getElementById('test-summary').innerHTML = `<span><strong>${tests.length}</strong> testing sensors</span><span><strong>${live}</strong> live</span><span>Latest-value mean <strong>${values.length ? format(values.reduce((sum, value) => sum + value, 0) / values.length) : '—'}</strong> unit</span>`;
+    document.getElementById('test-page').textContent = filtered.length ? `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, filtered.length)} of ${filtered.length}` : 'No matches';
+    document.getElementById('test-prev').disabled = page === 0;
+    document.getElementById('test-next').disabled = page >= maxPage;
+  };
+  const refresh = async () => {
+    try {
+      const response = await fetch('/sensors/summary', {cache: 'no-store'});
+      if (!response.ok) throw Error('Summary unavailable');
+      tests = (await response.json()).filter(sensor => sensor.sensor_id.startsWith('TEST_'));
+      render();
+    } catch { document.getElementById('test-summary').textContent = 'Testing-sensor summary unavailable.'; }
+  };
+  document.getElementById('test-search').addEventListener('input', () => { page = 0; render(); });
+  document.getElementById('test-prev').onclick = () => { page--; render(); };
+  document.getElementById('test-next').onclick = () => { page++; render(); };
+  refresh(); setInterval(refresh, 5000);
+})();
+</script></body></html>
+
+
+

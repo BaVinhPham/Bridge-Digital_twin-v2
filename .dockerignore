@@ -1,0 +1,6 @@
+output
+tmp
+data
+.git
+tests
+**/__pycache__
