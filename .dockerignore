@@ -1,6 +1,11 @@
+.git
+.env
+.env.*
+archive
+data
 output
 tmp
-data
-.git
 tests
 **/__pycache__
+**/.ipynb_checkpoints
+*.ipynb

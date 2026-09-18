@@ -6,25 +6,26 @@ import threading
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
-import psycopg2
+import pyodbc
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from app.models import router as models_router
+from app.database import get_conn, timestamp_utc
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bridge:bridgepass@localhost:5432/bridge")
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 
-app = FastAPI(title="Bridge Digital Twin Data Platform", version="0.1.0")
+app = FastAPI(title="Bridge Digital Twin Data Platform — Azure SQL", version="2.0.0")
 app.include_router(models_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).with_name("static")), name="static")
 mqtt_ready = threading.Event()
 measurement_queue = queue.Queue()
 
 
-@app.exception_handler(psycopg2.OperationalError)
+@app.exception_handler(pyodbc.OperationalError)
+@app.exception_handler(pyodbc.InterfaceError)
 async def database_unavailable(request, exc):
     return JSONResponse(status_code=503, content={"detail": "Database temporarily unavailable"})
 
@@ -35,19 +36,15 @@ def health():
     try:
         with get_conn() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT sensor_id FROM sensors LIMIT 1")
+                cursor.execute("SELECT TOP (1) sensor_id FROM dbo.sensors")
                 database_ok = True
-    except psycopg2.Error:
+    except pyodbc.Error:
         pass
     ready = database_ok and mqtt_ready.is_set()
     return JSONResponse(status_code=200 if ready else 503, content={
         "status": "ready" if ready else "unavailable",
         "database": database_ok, "mqtt": mqtt_ready.is_set(),
     })
-
-
-def get_conn():
-    return psycopg2.connect(DATABASE_URL, connect_timeout=5)
 
 
 def measurement_row(payload: dict):
@@ -71,16 +68,20 @@ def measurement_row(payload: dict):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
 
-    return (dt, payload["sensor_id"], value, payload.get("quality", "GOOD"))
+    # SQL datetime2 has no offset: normalize before removing timezone information.
+    return (dt.astimezone(timezone.utc).replace(tzinfo=None), payload["sensor_id"], value, payload.get("quality", "GOOD"))
 
 
 def store_measurements(rows):
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # Send an MQTT batch as a parameter array instead of one network round
+            # trip per measurement. This is essential when Azure SQL is remote.
+            cur.fast_executemany = True
             cur.executemany(
                 """
-                INSERT INTO measurements(time, sensor_id, value, quality)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO dbo.measurements(time, sensor_id, value, quality)
+                VALUES (?, ?, ?, ?)
                 """,
                 rows,
             )
@@ -152,7 +153,7 @@ def root():
 def list_sensors():
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT sensor_id, sensor_type, location, unit FROM sensors ORDER BY sensor_id")
+            cur.execute("SELECT sensor_id, sensor_type, location, unit FROM dbo.sensors ORDER BY sensor_id")
             rows = cur.fetchall()
     return [
         {"sensor_id": r[0], "sensor_type": r[1], "location": r[2], "unit": r[3]}
@@ -169,14 +170,13 @@ def sensor_summary():
                 """
                 SELECT s.sensor_id, s.sensor_type, s.location, s.unit,
                        m.time, m.value, m.quality
-                FROM sensors s
-                LEFT JOIN LATERAL (
-                    SELECT time, value, quality
-                    FROM measurements
+                FROM dbo.sensors s
+                OUTER APPLY (
+                    SELECT TOP (1) time, value, quality
+                    FROM dbo.measurements
                     WHERE sensor_id = s.sensor_id
-                    ORDER BY time DESC
-                    LIMIT 1
-                ) m ON TRUE
+                    ORDER BY time DESC, measurement_id DESC
+                ) m
                 ORDER BY s.sensor_id
                 """
             )
@@ -185,7 +185,7 @@ def sensor_summary():
         {
             "sensor_id": row[0], "sensor_type": row[1],
             "location": row[2], "unit": row[3],
-            "timestamp": row[4].isoformat() if row[4] else None,
+            "timestamp": timestamp_utc(row[4]),
             "value": row[5], "quality": row[6],
         }
         for row in rows
@@ -198,12 +198,11 @@ def latest(sensor_id: str):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT m.time, m.sensor_id, m.value, s.unit, m.quality
-                FROM measurements m
-                JOIN sensors s ON s.sensor_id = m.sensor_id
-                WHERE m.sensor_id = %s
-                ORDER BY m.time DESC
-                LIMIT 1
+                SELECT TOP (1) m.time, m.sensor_id, m.value, s.unit, m.quality
+                FROM dbo.measurements m
+                JOIN dbo.sensors s ON s.sensor_id = m.sensor_id
+                WHERE m.sensor_id = ?
+                ORDER BY m.time DESC, m.measurement_id DESC
                 """,
                 (sensor_id,),
             )
@@ -211,7 +210,7 @@ def latest(sensor_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="No measurement found")
     return {
-        "timestamp": row[0].isoformat(),
+        "timestamp": timestamp_utc(row[0]),
         "sensor_id": row[1],
         "value": row[2],
         "unit": row[3],
@@ -228,33 +227,31 @@ def history(sensor_id: str, limit: int = Query(20, ge=1, le=1000), minutes: int 
             if minutes is None:
                 cur.execute(
                     """
-                    SELECT time, value, quality
-                    FROM measurements
-                    WHERE sensor_id = %s
-                    ORDER BY time DESC
-                    LIMIT %s
+                    SELECT TOP (?) time, value, quality
+                    FROM dbo.measurements
+                    WHERE sensor_id = ?
+                    ORDER BY time DESC, measurement_id DESC
                     """,
-                    (sensor_id, limit),
+                    (limit, sensor_id),
                 )
 
             else:
                 cur.execute(
                     """
-                    SELECT time, value, quality
-                    FROM measurements
-                    WHERE sensor_id = %s
-                    AND time >= NOW() - (%s * INTERVAL '1 minute')
-                    ORDER BY time DESC
-                    LIMIT %s
+                    SELECT TOP (?) time, value, quality
+                    FROM dbo.measurements
+                    WHERE sensor_id = ?
+                    AND time >= DATEADD(minute, -CAST(? AS int), SYSUTCDATETIME())
+                    ORDER BY time DESC, measurement_id DESC
                     """,
-                    (sensor_id, minutes, limit),
+                    (limit, sensor_id, minutes),
                 )
 
             rows = cur.fetchall()
 
     return [
         {
-            "timestamp": row[0],
+            "timestamp": timestamp_utc(row[0]),
             "value": row[1],
             "quality": row[2]
         }
@@ -270,13 +267,13 @@ def stats(sensor_id: str, minutes: int | None = Query(None, ge=1, le=10080)):
                 cur.execute(
                     """
                     SELECT
-                        COUNT(*),
+                        COUNT_BIG(*),
                         AVG(value),
                         MIN(value),
                         MAX(value),
                         SQRT(AVG(value * value))
-                    FROM measurements
-                    WHERE sensor_id = %s
+                    FROM dbo.measurements
+                    WHERE sensor_id = ?
                     """,
                     (sensor_id,),
                 )
@@ -285,14 +282,14 @@ def stats(sensor_id: str, minutes: int | None = Query(None, ge=1, le=10080)):
                 cur.execute(
                     """
                     SELECT
-                        COUNT(*),
+                        COUNT_BIG(*),
                         AVG(value),
                         MIN(value),
                         MAX(value),
                         SQRT(AVG(value * value))
-                    FROM measurements
-                    WHERE sensor_id = %s
-                    AND time >= NOW() - (%s * INTERVAL '1 minute')
+                    FROM dbo.measurements
+                    WHERE sensor_id = ?
+                    AND time >= DATEADD(minute, -CAST(? AS int), SYSUTCDATETIME())
                     """,
                     (sensor_id, minutes),
                 )

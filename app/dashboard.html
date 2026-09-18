@@ -36,6 +36,18 @@ body{background:#101a22;color:#eaf3f6;min-height:100vh}main{max-width:none;min-h
 <footer>Updates every 2 seconds. Statistics describe the displayed readings. “No recent data” means the latest reading is over 10 seconds old; it does not indicate bridge condition.</footer>
 </main>
 <script>
+// Anchor freshness to the API clock; viewers' device clocks can be inaccurate.
+let serverClock = null;
+function serverNow() {
+  return serverClock
+    ? serverClock.epoch + performance.now() - serverClock.receivedAt
+    : Date.now();
+}
+async function readSensorResponse(response) {
+  const epoch = Date.parse(response.headers.get('Date'));
+  if (Number.isFinite(epoch)) serverClock = {epoch, receivedAt: performance.now()};
+  return response.json();
+}
 const definitions=[['ACC_01','Acceleration','Deck midspan','m/s²'],['SG_01','Strain','Girder G1','µε'],['TEMP_01','Temperature','Deck surface','°C'],['DISP_01','Displacement','Abutment','mm']];
 const cards=new Map(); let paused=false, busy=false, selectedSensor="ACC_01";
 const twin=document.getElementById('twin-canvas');
@@ -111,7 +123,7 @@ function render(card) {
             : 'No reading yet';
 
     const ageMs = last
-        ? Date.now() - Date.parse(last.timestamp)
+        ? serverNow() - Date.parse(last.timestamp)
         : null;
 
     a.querySelector('.state').textContent =
@@ -140,7 +152,7 @@ function render(card) {
 
     draw(card);
 }
-async function refresh(){if(paused||busy)return;busy=true;const limit=document.getElementById('limit').value;let failures=0;await Promise.all([...cards].map(async([id,card])=>{try{const response=await fetch(`/sensors/${id}/history?limit=${limit}`,{signal:AbortSignal.timeout(5000),cache:'no-store'});if(!response.ok)throw Error('API unavailable');card.data=(await response.json()).reverse();render(card);}catch{failures++;card.article.querySelector('.state').textContent='Connection unavailable · retained data';}}));document.getElementById('connection').textContent=paused?'Updates paused':failures?'Unable to refresh '+failures+' sensor(s)':'Connected · checked '+new Date().toLocaleTimeString();updateSelection();busy=false;}
+async function refresh(){if(paused||busy)return;busy=true;const limit=document.getElementById('limit').value;let failures=0;await Promise.all([...cards].map(async([id,card])=>{try{const response=await fetch(`/sensors/${id}/history?limit=${limit}`,{signal:AbortSignal.timeout(5000),cache:'no-store'});if(!response.ok)throw Error('API unavailable');card.data=(await readSensorResponse(response)).reverse();render(card);}catch{failures++;card.article.querySelector('.state').textContent='Connection unavailable · retained data';}}));document.getElementById('connection').textContent=paused?'Updates paused':failures?'Unable to refresh '+failures+' sensor(s)':'Connected · checked '+new Date().toLocaleTimeString();updateSelection();busy=false;}
 document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'Resume updates':'Pause updates';document.getElementById('connection').textContent=paused?'Updates paused':'Connecting…';updateSelection();if(!paused)refresh();};document.getElementById('limit').onchange=()=>{if(!paused)refresh();};new ResizeObserver(()=>{cards.forEach(draw);renderTwin()}).observe(document.getElementById('cards'));new ResizeObserver(renderTwin).observe(twin);refresh();setInterval(refresh,2000);
 </script><script>
 (() => {
@@ -166,7 +178,7 @@ document.getElementById('pause').onclick=()=>{paused=!paused;document.getElement
     const values = data.map(reading => Number(reading.value)).filter(Number.isFinite);
     detailArticle.querySelector('.value b').textContent = last ? formatTestValue(last.value) : '—';
     detailArticle.querySelector('.timestamp').textContent = last ? `Last reading: ${new Date(last.timestamp).toLocaleString()}` : 'No reading yet';
-    detailArticle.querySelector('.state').textContent = !last ? 'Waiting for data' : Date.now() - Date.parse(last.timestamp) > 10000 ? 'No recent data' : 'Receiving data';
+    detailArticle.querySelector('.state').textContent = !last ? 'Waiting for data' : serverNow() - Date.parse(last.timestamp) > 10000 ? 'No recent data' : 'Receiving data';
     detailArticle.querySelector('.avg').textContent = values.length ? formatTestValue(values.reduce((sum, value) => sum + value, 0) / values.length) : '—';
     detailArticle.querySelector('.min').textContent = values.length ? formatTestValue(Math.min(...values)) : '—';
     detailArticle.querySelector('.max').textContent = values.length ? formatTestValue(Math.max(...values)) : '—';
@@ -198,7 +210,7 @@ document.getElementById('pause').onclick=()=>{paused=!paused;document.getElement
     try {
       const response = await fetch(`/sensors/${encodeURIComponent(sensor.sensor_id)}/history?limit=50`, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
       if (!response.ok) throw Error('History unavailable');
-      detailCard.data = (await response.json()).reverse();
+      detailCard.data = (await readSensorResponse(response)).reverse();
       if (selectedTest === sensor.sensor_id) renderTestDetail();
     } catch {
       if (selectedTest === sensor.sensor_id) detailArticle.querySelector('.state').textContent = 'History unavailable';
@@ -221,12 +233,12 @@ document.getElementById('pause').onclick=()=>{paused=!paused;document.getElement
       id.append(name);
       const value = document.createElement('td'); value.textContent = `${format(sensor.value)} ${sensor.unit}`;
       const state = document.createElement('td');
-      const fresh = sensor.timestamp && Date.now() - Date.parse(sensor.timestamp) <= 10000;
+      const fresh = sensor.timestamp && serverNow() - Date.parse(sensor.timestamp) <= 10000;
       state.textContent = fresh ? 'Live' : 'No recent data';
       state.className = `test-sensor-state${fresh ? '' : ' late'}`;
       row.append(id, value, state); return row;
     }));
-    const live = tests.filter(sensor => sensor.timestamp && Date.now() - Date.parse(sensor.timestamp) <= 10000).length;
+    const live = tests.filter(sensor => sensor.timestamp && serverNow() - Date.parse(sensor.timestamp) <= 10000).length;
     const values = tests.map(sensor => Number(sensor.value)).filter(Number.isFinite);
     document.getElementById('test-summary').innerHTML = `<span><strong>${tests.length}</strong> testing sensors</span><span><strong>${live}</strong> live</span><span>Latest-value mean <strong>${values.length ? format(values.reduce((sum, value) => sum + value, 0) / values.length) : '—'}</strong> unit</span>`;
     document.getElementById('test-page').textContent = filtered.length ? `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, filtered.length)} of ${filtered.length}` : 'No matches';
@@ -237,7 +249,7 @@ document.getElementById('pause').onclick=()=>{paused=!paused;document.getElement
     try {
       const response = await fetch('/sensors/summary', {cache: 'no-store'});
       if (!response.ok) throw Error('Summary unavailable');
-      tests = (await response.json()).filter(sensor => sensor.sensor_id.startsWith('TEST_'));
+      tests = (await readSensorResponse(response)).filter(sensor => sensor.sensor_id.startsWith('TEST_'));
       render();
     } catch { document.getElementById('test-summary').textContent = 'Testing-sensor summary unavailable.'; }
   };
@@ -247,6 +259,4 @@ document.getElementById('pause').onclick=()=>{paused=!paused;document.getElement
   refresh(); setInterval(refresh, 5000);
 })();
 </script></body></html>
-
-
 

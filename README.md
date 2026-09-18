@@ -1,158 +1,150 @@
-# Bridge Digital Twin Data Platform — Prototype v1
+# Bridge Digital Twin v2 — Azure SQL preparation
 
-This first prototype implements:
+V2 stores sensor metadata and measurements in **Azure SQL Database**, outside
+Docker. The API, MQTT broker and optional simulator remain in Docker. The existing
+dashboard and model viewer are retained. This is a separate project from v1.
 
-Simulated Sensors → MQTT → Ingestion → PostgreSQL/TimescaleDB → FastAPI
+```
+Simulator / sensors -> MQTT -> FastAPI -> Azure SQL Database
+                                |
+                          Dashboard and model viewer
+```
 
-## 1. Requirements
-- Docker Desktop
-- Python 3.10+ for the simulator
+## Current status
 
-## 2. Start the platform
-From this folder:
+The code is prepared for Azure SQL; no Azure database has been purchased or
+connected yet. Offline tests cover API responses, query parameters, UTC conversion,
+connection cleanup and error handling. Actual SQL execution and the Docker image
+must be checked against your provisioned database before deployment.
+
+This is Microsoft SQL Server SQL, not PostgreSQL/TimescaleDB. PostgreSQL backups
+cannot be restored directly into Azure SQL. Do not run the v1 initialization SQL.
+
+## When you create the database
+
+1. Create an Azure SQL logical server and database, preferably near the application
+   VM (Australia East for the current deployment).
+2. Choose SQL authentication for this initial implementation. Entra-only servers
+   require a different connection implementation; managed identity is not yet wired in.
+3. Allow the application VM to reach the database using an appropriate Azure SQL
+   firewall rule or private endpoint. Use the logical server's DNS hostname, even
+   with a private endpoint. Avoid enabling access from all Azure services merely
+   to make a connection work.
+4. Keep the database administrator credentials for setup. Use a separate contained
+   database user for the running API, granted SELECT on dbo.sensors and SELECT,
+   INSERT on dbo.measurements. Create that user in the target database using your
+   administrator account after schema initialization; the API does not need DDL rights.
+
+Connections require ODBC Driver 18, encryption and certificate validation. The
+Dockerfile installs the driver using Microsoft's Debian 12 package repository.
+
+## Configure and initialize
+
+The copied `.env` still contains v1 PostgreSQL settings. It is deliberately left
+unchanged. Replace those settings when ready, using `.env.example` as the template.
+Never commit `.env` or paste credentials into source files.
+
+Required values:
+
+```dotenv
+AZURE_SQL_SERVER=your-server.database.windows.net
+AZURE_SQL_DATABASE=bridge-digital-twin-v2
+AZURE_SQL_USER=your-setup-user
+AZURE_SQL_PASSWORD='your-password'
+API_PORT=8001
+```
+
+From this v2 directory:
 
 ```bash
-docker compose up --build
+docker compose build
+docker compose run --rm --no-deps api python -m app.init_db
 ```
 
-Wait until the API, MQTT broker, and database are running.
+The setup command creates tables and a sensor/time index and registers the four
+bridge sensors plus TEST_001 through TEST_200. It is repeatable and does not clear
+existing rows. Run it once at a time with an account that can create tables and indexes.
+It initializes an empty database; it is not an upgrade tool for incompatible tables.
 
-## 3. Install simulator dependency
+After creating your limited database user, change AZURE_SQL_USER and
+AZURE_SQL_PASSWORD to that user's credentials, then run:
 
 ```bash
-pip install paho-mqtt
+docker compose up -d
 ```
 
-## 4. Run simulated bridge sensors
+Open http://localhost:8001/dashboard and http://localhost:8001/health. Without a
+publisher, "Waiting for data" is expected. To generate demo readings deliberately:
 
 ```bash
-python simulator/simulate.py
+docker compose --profile demo up -d
+docker compose logs --tail=20 simulator
 ```
 
-It publishes data every 2 seconds for:
-- ACC_01
-- SG_01
-- TEMP_01
-- DISP_01
+Stop generating test readings with `docker compose stop simulator`. With all 204
+sensors publishing every two seconds, the simulator creates about **8.8 million
+measurement rows per day**. Set a paid usage budget and retention plan before
+continuous use. A free database that pauses at its allowance limit will interrupt
+ingestion. Health checks and dashboard polling also use database compute.
 
-## 5. Test the API
-Open:
+## Separate deployment from v1
 
-- http://localhost:8000/
-- http://localhost:8000/docs
-- http://localhost:8000/sensors
-- http://localhost:8000/sensors/ACC_01/latest
-- http://localhost:8000/sensors/ACC_01/history?limit=20
+Compose uses project name `bridge-digital-twin-v2`, port 8001 and a separate model
+volume, so v1 can keep running on port 8000. MQTT is internal to the v2 Docker
+network. No database container, PostgreSQL port or database Docker volume is created.
+Uploaded v1 model versions are not automatically copied into the v2 model volume;
+bundled model assets remain available.
 
-## Architecture
+For public access on the VM, configure the reverse proxy to the v2 endpoint
+`127.0.0.1:8001` using a separate hostname or an intentional cutover. A reverse
+proxy running inside another container must use a shared network/service address
+instead of its own localhost. This preparation does not modify the live v1 site.
 
-```text
-Simulated Sensors
-      ↓
-     MQTT
-      ↓
-Python ingestion subscriber
-      ↓
-PostgreSQL + TimescaleDB
-      ↓
-FastAPI
-      ↓
-Dashboard / Digital Twin (next stage)
-```
+The copied folder also contains v1's `.git` metadata. Check `git remote -v` before
+pushing; use a separate v2 repository or a deliberate v2 branch. No push or remote
+change is performed by this preparation.
 
-## What this version teaches
-1. Sensor data generation
-2. MQTT publishing
-3. Data ingestion
-4. Time-series storage
-5. API access
+## Historical data migration
 
-## Imported bridge model (Version 4)
+Migration is a separate cutover step after database provisioning. Keep the v1
+database and backups until row counts and timestamps are verified. Export sensor
+metadata first, then measurement rows from PostgreSQL in bounded time ranges;
+normalize timestamps to UTC and import with parameterized Azure SQL inserts.
+Preserve custom sensors as well as the 204 defaults. Import into a clean target
+or track completed batches to avoid duplicate rows on a retry. Stop ingestion for
+the final delta, validate counts/latest timestamps, then switch the application.
+No existing records have been moved or deleted and no migration script is supplied yet.
 
-Open **http://localhost:8000/model** for the imported bridge, or the sensor
-dashboard to see it alongside simulated readings. The viewer includes orbit,
-zoom, pan, object inspection, site visibility, and two-point measurement.
-Colours are presentation colours, not verified Revit material appearances.
+The current prototype ingestion uses an in-memory queue and drops a failed batch
+after logging an error, as v1 did. A durable queue with retries and deduplication
+is required before relying on it for lossless real-sensor ingestion or database pauses.
 
-The included 15.5 MB GLB was converted from
-`output/revit/Binh Loi Bridge _final version.fbx` using Blender 5.2.
-It contains 215 mesh objects. The FBX timestamp precedes the latest Version 4
-RVT save by six minutes, so changes after that export are not represented.
-The RVT and FBX originals are unchanged. Conversion provenance and element names
-are recorded in `app/static/models/binh-loi-v5.json`.
+## Tests
 
-To regenerate the browser asset from that FBX:
-
-```powershell
-& 'C:\Program Files\Blender Foundation\Blender 5.2\blender.exe' --background --python output/revit/convert_fbx.py
-docker compose --profile demo up -d --build
-```
-
-To add later versions, use **Add a model version** in the model workspace.
-It accepts a self-contained GLB up to 100 MB, preserves previous versions, and
-stores uploads in the persistent `model_data` Docker volume. `GET /models`
-lists versions; `POST /models?name=...` accepts the raw GLB body with
-`Content-Type: model/gltf-binary`. This is a local prototype without user
-authentication; add access control before making it publicly accessible.
-
-Export names are retained for inspection, but are not verified persistent Revit
-UniqueIds. Sensor positions and object-to-sensor links are deliberately not
-assigned. Confirm these before connecting measurements to specific components.
-GLB distances are in metres; verify known dimensions against structural drawings.
-This version follows the available **RVT → FBX → GLB** path, not IFC property
-transfer. An IFC/UniqueId workflow is still needed for full BIM metadata.
-
-Viewer dependencies are pinned to Three.js 0.180.0 and served locally with its
-MIT license in `app/static/vendor/three/LICENSE`; no external CDN is required.
-
-Model API tests (requires `httpx` in the test environment):
+With Python 3.12 and an isolated virtual environment:
 
 ```bash
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -p test_azure_sql.py -v
 python -m unittest discover -s tests -p test_models.py -v
 ```
 
-## Next version
-- validation rules
-- processed results table
-- RMS / peak / FFT processing
-- alert rules
-- dashboard
-- mapping sensors to BIM/FEM bridge components
+Run all offline checks with `python -m unittest discover -s tests -v`. Four live
+checks are skipped unless `V2_TEST_URL` is set to the v2 base URL. Set it only after
+initializing Azure SQL and starting the demo; the live tests require recent readings.
 
-## Live dashboard demo
+After provisioning, initialize the database twice to verify repeatability, start
+the demo, and check `/sensors`, `/sensors/summary`, `/sensors/TEST_001/latest`,
+`/sensors/TEST_001/history?limit=5&minutes=10` and
+`/sensors/TEST_001/stats?minutes=10`. Timestamps should include `+00:00`, readings
+should advance, and the dashboard should show live sensors. Stop the simulator
+and confirm the status becomes stale after the 10-second window and next refresh.
 
-Readiness is available at http://localhost:8000/health. It checks database access
-and the MQTT subscription, not sensor freshness. Docker waits for readiness before
-starting the demo simulator. Database interruptions return HTTP 503 to data requests.
+## References
 
-Start the platform with continuous simulated readings:
+- [Python/ODBC connectivity](https://learn.microsoft.com/en-us/sql/connect/python/pyodbc/python-sql-driver-pyodbc)
+- [Microsoft ODBC Linux installation](https://learn.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server)
+- [Azure SQL free-offer limits](https://learn.microsoft.com/en-us/azure/azure-sql/database/free-offer)
 
-```bash
-docker compose --profile demo up -d --build
-```
-
-Open http://localhost:8000/dashboard. The four sensor cards refresh every two
-seconds. Choose 20–200 readings per chart or pause/resume the display. Statistics
-cover the displayed samples. Data is simulated, not a bridge safety assessment.
-
-The bridge schematic maps the four sensors to approximate component locations.
-Select a numbered marker or a named sensor button to see its current reading and
-highlight its card. The chart link jumps to that sensor's history. These controls
-also work with the keyboard. The schematic is illustrative; actual geometry and
-surveyed sensor positions are needed before connecting a real 3D bridge model.
-
-The dashboard now uses a dark control-room layout. Its bridge workspace is an
-interactive 3D-style drawing: drag to rotate and use the mouse wheel to zoom.
-It is an illustrative browser model, not an imported Revit or certified
-engineering model. A Revit export plus surveyed coordinates are needed before
-using an accurate 3D twin.
-
-Stop only the simulator (the dashboard remains available):
-
-```bash
-docker compose --profile demo stop simulator
-```
-
-After ten seconds without a fresh reading, cards show “No recent data”. Restart
-with `docker compose --profile demo start simulator`. Stop all services with
-`docker compose --profile demo stop`; stored measurements remain in the database.
+The original model documentation remains in `README-v1-reference.md` for asset
+provenance only. Its PostgreSQL, simulator and deployment commands do not apply to v2.

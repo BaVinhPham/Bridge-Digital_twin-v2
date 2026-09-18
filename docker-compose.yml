@@ -1,54 +1,42 @@
-services:
-  db:
-    image: timescale/timescaledb:latest-pg16
-    healthcheck:
-      test: [CMD-SHELL, "pg_isready -U bridge -d bridge"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+name: bridge-digital-twin-v2
 
+services:
   mqtt:
     image: eclipse-mosquitto:2
-    ports:
-      - "1883:1883"
+    restart: unless-stopped
+    # Internal MQTT only. The API and simulator use the Docker network.
     volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
   api:
     build: .
+    restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
       mqtt:
         condition: service_started
     healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=6)"]
-      interval: 10s
-      timeout: 8s
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=40)"]
+      interval: 30s
+      timeout: 45s
       retries: 3
-      start_period: 15s
+      start_period: 60s
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      AZURE_SQL_SERVER: ${AZURE_SQL_SERVER:?Set AZURE_SQL_SERVER in .env}
+      AZURE_SQL_DATABASE: ${AZURE_SQL_DATABASE:?Set AZURE_SQL_DATABASE in .env}
+      AZURE_SQL_USER: ${AZURE_SQL_USER:?Set AZURE_SQL_USER in .env}
+      AZURE_SQL_PASSWORD: ${AZURE_SQL_PASSWORD:?Set AZURE_SQL_PASSWORD in .env}
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
       MODEL_STORE: /data/models
     volumes:
       - model_data:/data/models
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${API_PORT:-8001}:8000"
 
   simulator:
     build: .
     profiles: [demo]
+    restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
@@ -60,5 +48,4 @@ services:
     command: [python, /simulator/simulate.py]
 
 volumes:
-  db_data:
   model_data:

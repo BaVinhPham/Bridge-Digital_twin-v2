@@ -1,0 +1,16 @@
+{
+  "id": "binh-loi-osm-context",
+  "name": "Bình Lợi · Version 5 · OpenStreetMap context",
+  "status": "preliminary",
+  "url": "/static/models/binh-loi-osm-context.glb",
+  "bytes": 17732508,
+  "mesh_count": 1459,
+  "sha256": "90f07b42b75f050dcf2b8ee1137a9f23a3c37eecac6ead393eb7ef9cf1b67333",
+  "source": "© OpenStreetMap contributors, ODbL 1.0; downloaded 2026-09-17 from the OpenStreetMap API.",
+  "geographic_reference": {
+    "latitude": 10.8249547,
+    "longitude": 106.709076,
+    "context_radius_metres": 550
+  },
+  "notes": "Detailed Revit-derived bridge geometry combined with OpenStreetMap building footprints, roads, water and ground. The bridge has an initial manual visual registration to the map pin. Surveyed control points are required before engineering or measurement use. Building heights use OSM height or levels where available and otherwise an assumed three-storey height."
+}
