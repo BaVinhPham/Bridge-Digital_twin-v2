@@ -88,7 +88,58 @@ function draw(card){
  c.strokeStyle='#e0e8ee';for(let i=0;i<3;i++){let y=top+i*(bottom-top)/2;c.beginPath();c.moveTo(left,y);c.lineTo(right,y);c.stroke();c.fillText(format(max-i*(max-min)/2),0,y+4);}
  const t0=Date.parse(data[0].timestamp),t1=Date.parse(data.at(-1).timestamp);c.strokeStyle='#087f8c';c.lineWidth=2;c.beginPath();data.forEach((d,i)=>{const x=left+(t1===t0?.5:(Date.parse(d.timestamp)-t0)/(t1-t0))*(right-left),y=bottom-(d.value-min)/(max-min)*(bottom-top);i?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();if(data.length===1){c.beginPath();c.arc((left+right)/2,bottom-(values[0]-min)/(max-min)*(bottom-top),3,0,Math.PI*2);c.fillStyle='#087f8c';c.fill();}c.fillStyle='#526b7c';c.fillText(new Date(t0).toLocaleTimeString(),left,180);c.textAlign='right';c.fillText(new Date(t1).toLocaleTimeString(),right,180);
 }
-function render(card){const a=card.article,data=card.data,last=data.at(-1),values=data.map(d=>d.value);a.querySelector('.value b').textContent=last?format(last.value):'—';a.querySelector('.timestamp').textContent=last?'Last reading: '+new Date(last.timestamp).toLocaleString():'No reading yet';a.querySelector('.state').textContent=!last?'Waiting for data':Date.now()-Date.parse(last.timestamp)>10000?'No recent data':'Receiving data';a.querySelector('.avg').textContent=values.length?format(values.reduce((a,b)=>a+b,0)/values.length):'—';a.querySelector('.min').textContent=values.length?format(Math.min(...values)):'—';a.querySelector('.max').textContent=values.length?format(Math.max(...values)):'—';a.querySelector('.count').textContent=values.length;draw(card);}
+function render(card) {
+    const a = card.article;
+    const data = card.data;
+
+    const last = data.length
+        ? data.reduce((latest, current) =>
+            Date.parse(current.timestamp) > Date.parse(latest.timestamp)
+                ? current
+                : latest
+          )
+        : null;
+
+    const values = data.map(d => d.value);
+
+    a.querySelector('.value b').textContent =
+        last ? format(last.value) : '—';
+
+    a.querySelector('.timestamp').textContent =
+        last
+            ? 'Last reading: ' + new Date(last.timestamp).toLocaleString()
+            : 'No reading yet';
+
+    const ageMs = last
+        ? Date.now() - Date.parse(last.timestamp)
+        : null;
+
+    a.querySelector('.state').textContent =
+        !last
+            ? 'Waiting for data'
+            : ageMs > 10000
+                ? 'No recent data'
+                : 'Receiving data';
+
+    a.querySelector('.avg').textContent =
+        values.length
+            ? format(values.reduce((a, b) => a + b, 0) / values.length)
+            : '—';
+
+    a.querySelector('.min').textContent =
+        values.length
+            ? format(Math.min(...values))
+            : '—';
+
+    a.querySelector('.max').textContent =
+        values.length
+            ? format(Math.max(...values))
+            : '—';
+
+    a.querySelector('.count').textContent = values.length;
+
+    draw(card);
+}
 async function refresh(){if(paused||busy)return;busy=true;const limit=document.getElementById('limit').value;let failures=0;await Promise.all([...cards].map(async([id,card])=>{try{const response=await fetch(`/sensors/${id}/history?limit=${limit}`,{signal:AbortSignal.timeout(5000),cache:'no-store'});if(!response.ok)throw Error('API unavailable');card.data=(await response.json()).reverse();render(card);}catch{failures++;card.article.querySelector('.state').textContent='Connection unavailable · retained data';}}));document.getElementById('connection').textContent=paused?'Updates paused':failures?'Unable to refresh '+failures+' sensor(s)':'Connected · checked '+new Date().toLocaleTimeString();updateSelection();busy=false;}
 document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'Resume updates':'Pause updates';document.getElementById('connection').textContent=paused?'Updates paused':'Connecting…';updateSelection();if(!paused)refresh();};document.getElementById('limit').onchange=()=>{if(!paused)refresh();};new ResizeObserver(()=>{cards.forEach(draw);renderTwin()}).observe(document.getElementById('cards'));new ResizeObserver(renderTwin).observe(twin);refresh();setInterval(refresh,2000);
 </script><script>
