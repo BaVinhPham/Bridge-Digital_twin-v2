@@ -31,7 +31,8 @@ services:
     volumes:
       - model_data:/data/models
     ports:
-      - "127.0.0.1:${API_PORT:-8001}:8000"
+      # Use 127.0.0.1 locally; set API_BIND_ADDRESS=0.0.0.0 on the VM.
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8001}:8000"
 
   simulator:
     build: .

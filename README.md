@@ -95,10 +95,11 @@ network. No database container, PostgreSQL port or database Docker volume is cre
 Uploaded v1 model versions are not automatically copied into the v2 model volume;
 bundled model assets remain available.
 
-For public access on the VM, configure the reverse proxy to the v2 endpoint
-`127.0.0.1:8001` using a separate hostname or an intentional cutover. A reverse
-proxy running inside another container must use a shared network/service address
-instead of its own localhost. This preparation does not modify the live v1 site.
+For public access on the VM without a reverse proxy, set `API_BIND_ADDRESS=0.0.0.0`
+and `API_PORT=8000` only after v1 is stopped, then start v2. This preserves the
+existing public URL. A reverse proxy running inside another container must use a
+shared network/service address instead of its own localhost. This preparation does
+not modify the live v1 site until that deliberate cutover.
 
 The copied folder also contains v1's `.git` metadata. Check `git remote -v` before
 pushing; use a separate v2 repository or a deliberate v2 branch. No push or remote
